@@ -38,6 +38,7 @@ use GuzzleHttp\Exception\RequestException;
 use OC\Files\Filesystem;
 use OC\Files\Stream\Close;
 use Icewind\Streams\IteratorDirectory;
+use OC\ForbiddenException;
 use OC\MemCache\ArrayCache;
 use OCP\AppFramework\Http;
 use OCP\Constants;
@@ -194,11 +195,16 @@ class DAV extends Common {
 		$this->init();
 		$path = $this->cleanPath($path);
 		try {
-			$response = $this->client->propfind(
-				$this->encodePath($path),
-				array(),
-				1
-			);
+			try {
+				$response = $this->client->propfind(
+					$this->encodePath($path),
+					array(),
+					1
+				);
+			} catch (\Exception $e) {
+				$this->convertException($e, $path);
+				return false;
+			}
 			$id = md5('webdav' . $this->root . $path);
 			$content = array();
 			$files = array_keys($response);
@@ -270,6 +276,9 @@ class DAV extends Common {
 				$this->statCache->clear($path . '/');
 				$this->statCache->set($path, false);
 				throw $e;
+			} catch (\Exception $e) {
+				$this->convertException($e, $path);
+				return false;
 			}
 		} else {
 			$response = $cachedResponse;
@@ -785,6 +794,8 @@ class DAV extends Common {
 			if ($e->getHttpStatus() === 401) {
 				// either password was changed or was invalid all along
 				throw new StorageInvalidException(get_class($e) . ': ' . $e->getMessage());
+			} else if ($e->getHttpStatus() === 403) {
+				throw new ForbiddenException($e->getMessage(), $e->getCode(), $e);
 			} else if ($e->getHttpStatus() === 405) {
 				// ignore exception for MethodNotAllowed, false will be returned
 				return;
