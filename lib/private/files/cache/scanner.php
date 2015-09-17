@@ -35,8 +35,12 @@
 namespace OC\Files\Cache;
 
 use OC\Files\Filesystem;
+use OC\ForbiddenException;
 use OC\Hooks\BasicEmitter;
 use OCP\Config;
+use OCP\Files\NotFoundException;
+use OCP\Files\StorageInvalidException;
+use OCP\Files\StorageNotAvailableException;
 use OCP\Files\Cache\IScanner;
 use OCP\Files\Storage\ILockingStorage;
 use OCP\Lock\ILockingProvider;
@@ -140,7 +144,17 @@ class Scanner extends BasicEmitter implements IScanner {
 				}
 			}
 
-			$data = $this->getData($file);
+			try {
+				$data = $this->getData($file);
+			} catch (StorageNotAvailableException $e) {
+				return null;
+			} catch (StorageInvalidException $e) {
+				return null;
+			} catch (NotFoundException $e) {
+				return null;
+			} catch (ForbiddenException $e) {
+				return null;
+			}
 
 			if ($data) {
 
