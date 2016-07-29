@@ -28,6 +28,8 @@ namespace OCA\FederatedFileSharing;
 use OCP\AppFramework\Http;
 use OCP\BackgroundJob\IJobList;
 use OCP\Http\Client\IClientService;
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\RequestException;
 
 class Notifications {
 	const RESPONSE_FORMAT = 'json'; // default response format for ocs calls
@@ -73,7 +75,7 @@ class Notifications {
 	 * @param string $ownerFederatedId
 	 * @param string $sharedBy
 	 * @param string $sharedByFederatedId
-	 * @return bool
+	 * @return array with status information
 	 * @throws \OC\HintException
 	 * @throws \OC\ServerNotAvailableException
 	 */
@@ -103,12 +105,11 @@ class Notifications {
 
 			if ($result['success'] && ($status['ocs']['meta']['statuscode'] === 100 || $status['ocs']['meta']['statuscode'] === 200)) {
 				\OC_Hook::emit('OCP\Share', 'federated_share_added', ['server' => $remote]);
-				return true;
 			}
 
 		}
 
-		return false;
+		return $status;
 	}
 
 	/**
@@ -296,11 +297,20 @@ class Notifications {
 				$result['result'] = $response->getBody();
 				$result['success'] = true;
 				break;
+			} catch (ClientException $e) {
+				// this exceptions happens for http error code 40x which the server sends
+				// if any data of the request is bad, ie. the username does not exist.
+				// In that case we want to retrieve an error message.
+				$response = $e->getResponse();
+				$result['result'] = $response->getBody();
+				$try++;
 			} catch (\Exception $e) {
 				// if flat re-sharing is not supported by the remote server
 				// we re-throw the exception and fall back to the old behaviour.
 				// (flat re-shares has been introduced in ownCloud 9.1)
-				if ($e->getCode() === Http::STATUS_INTERNAL_SERVER_ERROR) {
+				$code = $e->getCode();
+
+				if ($code === Http::STATUS_INTERNAL_SERVER_ERROR) {
 					throw $e;
 				}
 				$try++;

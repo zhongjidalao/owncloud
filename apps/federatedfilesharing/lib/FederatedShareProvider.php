@@ -136,7 +136,7 @@ class FederatedShareProvider implements IShareProvider {
 		$itemType = $share->getNodeType();
 		$permissions = $share->getPermissions();
 		$sharedBy = $share->getSharedBy();
-		
+
 		/*
 		 * Check if file is not already shared with the remote user
 		 */
@@ -224,7 +224,7 @@ class FederatedShareProvider implements IShareProvider {
 			if ($this->userManager->userExists($sharedByFederatedId)) {
 				$sharedByFederatedId = $sharedByFederatedId . '@' . $this->addressHandler->generateRemoteURL();
 			}
-			$send = $this->notifications->sendRemoteShare(
+			$status = $this->notifications->sendRemoteShare(
 				$token,
 				$share->getSharedWith(),
 				$share->getNode()->getName(),
@@ -235,9 +235,18 @@ class FederatedShareProvider implements IShareProvider {
 				$sharedByFederatedId
 			);
 
-			if ($send === false) {
-				$message_t = $this->l->t('Sharing %s failed, could not find %s, maybe the server is currently unreachable.',
-					[$share->getNode()->getName(), $share->getSharedWith()]);
+			/* Check for failure or null return from sending and pick up an error message
+			 * if there is one coming from the remote server, otherwise use a generic one.
+			 */
+			if (!$status || $status['ocs']['meta']['status'] === 'failure') {
+				$msg = $this->l->t($status['ocs']['meta']['message']);
+
+				if( empty($msg) ) {
+					$message_t = $this->l->t('Sharing %s failed, could not find %s, maybe the server is currently unreachable.',
+						[$share->getNode()->getName(), $share->getSharedWith()]);
+				} else {
+					$message_t = $this->l->t("Federated Sharing failed: ") . $this->l->t($msg);
+				}
 				throw new \Exception($message_t);
 			}
 		} catch (\Exception $e) {
