@@ -239,13 +239,13 @@ class FederatedShareProvider implements IShareProvider {
 			 * if there is one coming from the remote server, otherwise use a generic one.
 			 */
 			if (!$status || $status['ocs']['meta']['status'] === 'failure') {
-				$msg = $this->l->t($status['ocs']['meta']['message']);
+				$msg = $status['ocs']['meta']['message'];
 
 				if( empty($msg) ) {
 					$message_t = $this->l->t('Sharing %s failed, could not find %s, maybe the server is currently unreachable.',
 						[$share->getNode()->getName(), $share->getSharedWith()]);
 				} else {
-					$message_t = $this->l->t("Federated Sharing failed: ") . $this->l->t($msg);
+					$message_t = $this->l->t("Federated Sharing failed: %s", [$msg]);
 				}
 				throw new \Exception($message_t);
 			}
