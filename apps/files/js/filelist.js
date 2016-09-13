@@ -300,10 +300,10 @@
 				breadcrumbOptions.onDrop = _.bind(this._onDropOnBreadCrumb, this);
 				breadcrumbOptions.onOver = function() {
 					self.$el.find('td.filename.ui-droppable').droppable('disable');
-				}
+				};
 				breadcrumbOptions.onOut = function() {
 					self.$el.find('td.filename.ui-droppable').droppable('enable');
-				}
+				};
 			}
 			this.breadcrumb = new OCA.Files.BreadCrumb(breadcrumbOptions);
 
@@ -1416,7 +1416,7 @@
 			this._setCurrentDir(targetDir, changeUrl, fileId);
 			// discard finished uploads list, we'll get it through a regular reload
 			this._uploads = {};
-			this.reload().then(function(success){
+			return this.reload().then(function(success){
 				if (!success) {
 					self.changeDirectory(currentDir, true);
 				}
@@ -2923,7 +2923,42 @@
 
 		_setupDragOptions: function() {
 			var self = this;
+			var dragHoldTimer = null;
+			var $dragOriginal;
+
+			function dragHold() {
+				var $hoverEl = self.$el.find('.canDrop');
+				if (!$hoverEl.length || $hoverEl.hasClass('dragging')) {
+					return;
+				}
+
+				var targetDir = null;
+				if ($hoverEl.hasClass('crumb')) {
+					// hover on breadcrumb
+					targetDir = $hoverEl.attr('data-dir');
+				} else if ($hoverEl.is('tr') && $hoverEl.closest('#filestable').length) {
+					// hover on table row
+					if ($hoverEl.attr('data-mime') === 'httpd/unix-directory') {
+						targetDir = OC.joinPaths($hoverEl.attr('data-path'), $hoverEl.attr('data-file'));
+					}
+				}
+
+				if (targetDir !== null && targetDir !== self.getCurrentDirectory()) {
+					// prevent original destruction
+					$dragOriginal.detach();
+					$dragOriginal.draggable('option', 'refreshPositions', true);
+					self.changeDirectory(targetDir).then(function() {
+						// set to false for performance
+						setTimeout(function() {
+							$dragOriginal.draggable('option', 'refreshPositions', false);
+						}, 1000);
+					});
+				}
+			}
+
+			var dragHoldDelay = 1000;
 			var dragOptions = {
+				refreshPositions: false,
 				revert: 'invalid',
 				revertDuration: 300,
 				opacity: 0.7,
@@ -2939,8 +2974,12 @@
 						$selectedFiles = $(this);
 					}
 					$selectedFiles.closest('tr').addClass('animate-opacity dragging');
+					$dragOriginal = $(this);
 				},
 				stop: function() {
+					if (dragHoldTimer) {
+						clearTimeout(dragHoldTimer);
+					}
 					var $selectedFiles = self.$table.find('td.filename input:checkbox:checked');
 					if (!$selectedFiles.length) {
 						$selectedFiles = $(this);
@@ -2950,11 +2989,18 @@
 					setTimeout(function() {
 						$tr.removeClass('animate-opacity');
 					}, 300);
+					$dragOriginal = null;
 				},
-				drag: function() {
+				drag: function(event, ui) {
 					var scrollingArea = self.$container;
 					var currentScrollTop = $(scrollingArea).scrollTop();
 					var scrollArea = Math.min(Math.floor($(window).innerHeight() / 2), 100);
+
+					// every time the user moves, reset the hold timer
+					if (dragHoldTimer) {
+						clearTimeout(dragHoldTimer);
+					}
+					dragHoldTimer = setTimeout(dragHold, dragHoldDelay);
 
 					// auto-scroll when reaching the top or bottom of the screen while dragging
 					var bottom = $(window).innerHeight() - scrollArea;
@@ -2970,7 +3016,6 @@
 							scrollTop: $(scrollingArea).scrollTop(currentScrollTop + 10)
 						}, 400);
 					}
-
 				}
 			};
 			// sane browsers support using the distance option
@@ -2984,7 +3029,7 @@
 			var self = this;
 			return {
 				hoverClass: "canDrop",
-				drop: function( event, ui ) {
+				drop: function(event, ui) {
 					// don't allow moving a file into a selected folder
 					if ($(event.target).parents('tr').find('td input:first').prop('checked') === true) {
 						return false;
