@@ -664,6 +664,35 @@
 		 * @return {Promise} promise
 		 */
 		move: function(path, destinationPath, allowOverwrite) {
+			return this._moveOrCopy(path, destinationPath, allowOverwrite, false);
+		},
+
+		/**
+		 * Copies path to another path
+		 *
+		 * @param {String} path path to copy
+		 * @param {String} destinationPath destination path
+		 * @param {boolean} [allowOverwrite=false] true to allow overwriting,
+		 * false otherwise
+		 *
+		 * @return {Promise} promise
+		 */
+		copy: function(path, destinationPath, allowOverwrite) {
+			return this._moveOrCopy(path, destinationPath, allowOverwrite, true);
+		},
+
+		/**
+		 * Moves path to another path
+		 *
+		 * @param {String} path path to move
+		 * @param {String} destinationPath destination path
+		 * @param {boolean} [allowOverwrite=false] true to allow overwriting,
+		 * false otherwise
+		 * @param {boolean} [copy=false] true to copy else move
+		 *
+		 * @return {Promise} promise
+		 */
+		_moveOrCopy: function(path, destinationPath, allowOverwrite, copy) {
 			if (!path) {
 				throw 'Missing argument "path"';
 			}
@@ -683,7 +712,7 @@
 			}
 
 			this._client.request(
-				'MOVE',
+				copy ? 'COPY' : 'MOVE',
 				this._buildUrl(path),
 				headers
 			).then(

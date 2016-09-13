@@ -827,7 +827,12 @@
 				});
 			}
 
-			this.move(_.pluck(files, 'name'), targetPath);
+			// FIXME: now assuming that all dropped files come from the same folder!
+			if (event.ctrlKey) {
+				this.copy(_.pluck(files, 'name'), targetPath, files[0].path);
+			} else {
+				this.move(_.pluck(files, 'name'), targetPath, files[0].path);
+			}
 
 			// re-enable td elements to be droppable
 			// sometimes the filename drop handler is still called after re-enable,
@@ -1861,15 +1866,44 @@
 			}
 			return index;
 		},
+
+
+		/**
+		 * Moves files to a given target folder.
+		 *
+		 * @param {Array.<String>} fileNames array of file names to move
+		 * @param {String} targetPath absolute target path
+		 * @param {String} [baseDir] directory to prefix for all file names, defaults to current directory
+		 */
+		move: function(fileNames, targetPath, baseDir) {
+			return this._moveOrCopy(fileNames, targetPath, baseDir, false);
+		},
+
+		/**
+		 * Copies files to a given target folder.
+		 *
+		 * @param {Array.<String>} fileNames array of file names to copy
+		 * @param {String} targetPath absolute target path
+		 * @param {String} [baseDir] directory to prefix for all file names, defaults to current directory
+		 */
+		copy: function(fileNames, targetPath, baseDir) {
+			return this._moveOrCopy(fileNames, targetPath, baseDir, true);
+		},
+
 		/**
 		 * Moves a file to a given target folder.
 		 *
 		 * @param fileNames array of file names to move
 		 * @param targetPath absolute target path
+		 * @param {String} [baseDir] directory to prefix for all file names
+		 * @param {bool} [copy=false] whether to copy instead of move
 		 */
-		move: function(fileNames, targetPath) {
+		_moveOrCopy: function(fileNames, targetPath, baseDir, copy) {
 			var self = this;
-			var dir = this.getCurrentDirectory();
+			var dir = baseDir;
+			if (_.isUndefined(dir)) {
+				dir = this.getCurrentDirectory();
+			}
 			if (dir.charAt(dir.length - 1) !== '/') {
 				dir += '/';
 			}
@@ -1885,7 +1919,8 @@
 					// not overwrite it
 					targetPath = targetPath + '/';
 				}
-				self.filesClient.move(dir + fileName, targetPath + fileName)
+				var method = copy ? 'copy' : 'move';
+				self.filesClient[method](dir + fileName, targetPath + fileName)
 					.done(function() {
 						// if still viewing the same directory
 						if (OC.joinPaths(self.getCurrentDirectory(), '/') === dir) {
@@ -1897,20 +1932,40 @@
 							oldFile.data('size', newSize);
 							oldFile.find('td.filesize').text(OC.Util.humanFileSize(newSize));
 
-							// TODO: also update entry in FileList.files
-							self.remove(fileName);
+							if (!copy) {
+								OC.Notification.showTemporary(
+									t('files', 'Files were successfully moved')
+								);
+								self.remove(fileName);
+							} else {
+								OC.Notification.showTemporary(
+									t('files', 'Files were successfully copied')
+								);
+							}
 						}
 					})
 					.fail(function(status) {
 						if (status === 412) {
 							// TODO: some day here we should invoke the conflict dialog
-							OC.Notification.showTemporary(
-								t('files', 'Could not move "{file}", target exists', {file: fileName})
-							);
+							if (!copy) {
+								OC.Notification.showTemporary(
+									t('files', 'Could not move "{file}", target exists', {file: fileName})
+								);
+							} else {
+								OC.Notification.showTemporary(
+									t('files', 'Could not copy "{file}", target exists', {file: fileName})
+								);
+							}
 						} else {
-							OC.Notification.showTemporary(
-								t('files', 'Could not move "{file}"', {file: fileName})
-							);
+							if (!copy) {
+								OC.Notification.showTemporary(
+									t('files', 'Could not move "{file}"', {file: fileName})
+								);
+							} else {
+								OC.Notification.showTemporary(
+									t('files', 'Could not copy "{file}"', {file: fileName})
+								);
+							}
 						}
 					})
 					.always(function() {
@@ -3050,7 +3105,12 @@
 						});
 					}
 
-					self.move(_.pluck(files, 'name'), targetPath);
+					// FIXME: now assuming that all dropped files come from the same folder!
+					if (event.ctrlKey) {
+						self.copy(_.pluck(files, 'name'), targetPath, files[0].path);
+					} else {
+						self.move(_.pluck(files, 'name'), targetPath, files[0].path);
+					}
 				},
 				tolerance: 'pointer'
 			};
