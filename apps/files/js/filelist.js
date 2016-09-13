@@ -29,6 +29,8 @@
 	 * @param {Object} [options.scrollContainer] scrollable container, defaults to $(window)
 	 * @param {Object} [options.dragOptions] drag options, disabled by default
 	 * @param {Object} [options.folderDropOptions] folder drop options, disabled by default
+	 * @param {Object} [options.enableDragging=false] whether to enable dragging
+	 * @param {Object} [options.enableDropping=false] whether to enable dropping
 	 * @param {boolean} [options.detailsViewEnabled=true] whether to enable details view
 	 * @param {boolean} [options.enableUpload=false] whether to enable uploader
 	 * @param {OC.Files.Client} [options.filesClient] files client to use
@@ -220,11 +222,15 @@
 				});
 			}
 
-			if (options.dragOptions) {
+			if (!_.isUndefined(options.dragOptions)) {
 				this._dragOptions = options.dragOptions;
+			} else if (options.enableDragging) {
+				this._dragOptions = this._setupDragOptions();
 			}
-			if (options.folderDropOptions) {
+			if (!_.isUndefined(options.folderDropOptions)) {
 				this._folderDropOptions = options.folderDropOptions;
+			} else if (options.enableDropping) {
+				this._folderDropOptions = this._setupFolderDropOptions();
 			}
 			if (options.filesClient) {
 				this.filesClient = options.filesClient;
@@ -2913,6 +2919,149 @@
 			if (this._detailsView) {
 				this._detailsView.addDetailView(detailView);
 			}
+		},
+
+		_setupDragOptions: function() {
+			var self = this;
+			var dragOptions = {
+				revert: 'invalid',
+				revertDuration: 300,
+				opacity: 0.7,
+				zIndex: 100,
+				appendTo: 'body',
+				cursorAt: { left: 24, top: 18 },
+				helper: _.bind(this._createDragShadow, this),
+				cursor: 'move',
+
+				start: function(){
+					var $selectedFiles = self.$table.find('td.filename input:checkbox:checked');
+					if (!$selectedFiles.length) {
+						$selectedFiles = $(this);
+					}
+					$selectedFiles.closest('tr').addClass('animate-opacity dragging');
+				},
+				stop: function() {
+					var $selectedFiles = self.$table.find('td.filename input:checkbox:checked');
+					if (!$selectedFiles.length) {
+						$selectedFiles = $(this);
+					}
+					var $tr = $selectedFiles.closest('tr');
+					$tr.removeClass('dragging');
+					setTimeout(function() {
+						$tr.removeClass('animate-opacity');
+					}, 300);
+				},
+				drag: function() {
+					var scrollingArea = self.$container;
+					var currentScrollTop = $(scrollingArea).scrollTop();
+					var scrollArea = Math.min(Math.floor($(window).innerHeight() / 2), 100);
+
+					// auto-scroll when reaching the top or bottom of the screen while dragging
+					var bottom = $(window).innerHeight() - scrollArea;
+					var top = $(window).scrollTop() + scrollArea;
+					if (event.pageY < top) {
+						$('html, body').animate({
+
+							scrollTop: $(scrollingArea).scrollTop(currentScrollTop - 10)
+						}, 400);
+
+					} else if (event.pageY > bottom) {
+						$('html, body').animate({
+							scrollTop: $(scrollingArea).scrollTop(currentScrollTop + 10)
+						}, 400);
+					}
+
+				}
+			};
+			// sane browsers support using the distance option
+			if ( $('html.ie').length === 0) {
+				dragOptions.distance = 20;
+			}
+			return dragOptions;
+		},
+
+		_setupFolderDropOptions: function() {
+			var self = this;
+			return {
+				hoverClass: "canDrop",
+				drop: function( event, ui ) {
+					// don't allow moving a file into a selected folder
+					if ($(event.target).parents('tr').find('td input:first').prop('checked') === true) {
+						return false;
+					}
+
+					var $tr = $(this).closest('tr');
+					if (($tr.data('permissions') & OC.PERMISSION_CREATE) === 0) {
+						self._showPermissionDeniedNotification();
+						return false;
+					}
+					var targetPath = self.getCurrentDirectory() + '/' + $tr.data('file');
+
+					var files = self.getSelectedFiles();
+					if (files.length === 0) {
+						// single one selected without checkbox?
+						files = _.map(ui.helper.find('tr'), function(el) {
+							return self.elementToFile($(el));
+						});
+					}
+
+					self.move(_.pluck(files, 'name'), targetPath);
+				},
+				tolerance: 'pointer'
+			};
+		},
+
+		_createDragShadow: function(event) {
+			var self = this;
+			//select dragged file
+			var isDragSelected = $(event.target).parents('tr').find('td input:first').prop('checked');
+			if (!isDragSelected) {
+				//select dragged file
+				this._selectFileEl($(event.target).parents('tr:first'), true, false);
+			}
+
+			// do not show drag shadow for too many files
+			var selectedFiles = _.first(this.getSelectedFiles(), this.pageSize());
+			selectedFiles = _.sortBy(selectedFiles, this._fileInfoCompare);
+
+			if (!isDragSelected && selectedFiles.length === 1) {
+				//revert the selection
+				this._selectFileEl($(event.target).parents('tr:first'), false, false);
+			}
+
+			// build dragshadow
+			var dragshadow = $('<table class="dragshadow"></table>');
+			var tbody = $('<tbody></tbody>');
+			dragshadow.append(tbody);
+
+			var dir = this.getCurrentDirectory();
+
+			$(selectedFiles).each(function(i,elem) {
+				// TODO: refactor this with the table row creation code
+				var newtr = $('<tr/>')
+					.attr('data-dir', dir)
+					.attr('data-file', elem.name)
+					.attr('data-origin', elem.origin);
+				newtr.append($('<td class="filename" />').text(elem.name).css('background-size', 32));
+				newtr.append($('<td class="size" />').text(OC.Util.humanFileSize(elem.size)));
+				tbody.append(newtr);
+				if (elem.type === 'dir') {
+					newtr.find('td.filename')
+						.css('background-image', 'url(' + OC.imagePath('core', 'filetypes/folder.png') + ')');
+				} else {
+					var path = dir + '/' + elem.name;
+					self.lazyLoadPreview({
+						path: path,
+						mime: elem.mimetype,
+						callback: function(previewpath) {
+							newtr.find('td.filename').css('background-image', 'url(' + previewpath + ')');
+						},
+						etag: elem.etag
+					});
+				}
+			});
+
+			return dragshadow;
 		}
 	};
 
