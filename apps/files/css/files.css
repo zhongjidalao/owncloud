@@ -844,7 +844,7 @@ html.ie8 #controls .button.new {
 	margin-bottom: 2px;
 }
 
-.canDrop,
+.crumb.canDrop,
 #filestable tbody tr.canDrop {
   background-color: rgba(255, 255, 140, 1);
 }

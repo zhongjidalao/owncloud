@@ -304,6 +304,7 @@
 				breadcrumbOptions.onOut = function() {
 					self.$el.find('td.filename.ui-droppable').droppable('enable');
 				};
+				self.$container.droppable(this._folderDropOptions);
 			}
 			this.breadcrumb = new OCA.Files.BreadCrumb(breadcrumbOptions);
 
@@ -819,13 +820,9 @@
 				return;
 			}
 
-			var files = this.getSelectedFiles();
-			if (files.length === 0) {
-				// single one selected without checkbox?
-				files = _.map(ui.helper.find('tr'), function(el) {
-					return self.elementToFile($(el));
-				});
-			}
+			var files = _.map(ui.helper.find('tr'), function(el) {
+				return self.elementToFile($(el));
+			});
 
 			// FIXME: now assuming that all dropped files come from the same folder!
 			if (event.ctrlKey) {
@@ -1907,11 +1904,10 @@
 			if (dir.charAt(dir.length - 1) !== '/') {
 				dir += '/';
 			}
-			var target = OC.basename(targetPath);
 			if (!_.isArray(fileNames)) {
 				fileNames = [fileNames];
 			}
-			_.each(fileNames, function(fileName) {
+			var promises = _.map(fileNames, function(fileName) {
 				var $tr = self.findFileEl(fileName);
 				self.showFileBusyState($tr, true);
 				if (targetPath.charAt(targetPath.length - 1) !== '/') {
@@ -1920,29 +1916,29 @@
 					targetPath = targetPath + '/';
 				}
 				var method = copy ? 'copy' : 'move';
-				self.filesClient[method](dir + fileName, targetPath + fileName)
+				var source = OC.joinPaths(dir, fileName);
+				var target = OC.joinPaths(targetPath, fileName);
+				var deferred = $.Deferred();
+				self.filesClient[method](source, target)
 					.done(function() {
 						// if still viewing the same directory
-						if (OC.joinPaths(self.getCurrentDirectory(), '/') === dir) {
+						var currentDir = OC.joinPaths(self.getCurrentDirectory(), '/');
+						if (currentDir === dir) {
 							// recalculate folder size
-							var oldFile = self.findFileEl(target);
-							var newFile = self.findFileEl(fileName);
-							var oldSize = oldFile.data('size');
-							var newSize = oldSize + newFile.data('size');
-							oldFile.data('size', newSize);
-							oldFile.find('td.filesize').text(OC.Util.humanFileSize(newSize));
-
 							if (!copy) {
-								OC.Notification.showTemporary(
-									t('files', 'Files were successfully moved')
-								);
+								var oldFile = self.findFileEl(target);
+								var newFile = self.findFileEl(fileName);
+								var oldSize = oldFile.data('size');
+								var newSize = oldSize + newFile.data('size');
+								oldFile.data('size', newSize);
+								oldFile.find('td.filesize').text(OC.Util.humanFileSize(newSize));
 								self.remove(fileName);
-							} else {
-								OC.Notification.showTemporary(
-									t('files', 'Files were successfully copied')
-								);
 							}
+						} else if (currentDir === targetPath) {
+							// moved something into the current dir ?
+							self.addAndFetchFileInfo(OC.joinPaths(targetPath, fileName), '');
 						}
+						deferred.resolve();
 					})
 					.fail(function(status) {
 						if (status === 412) {
@@ -1967,12 +1963,24 @@
 								);
 							}
 						}
+						deferred.reject();
 					})
 					.always(function() {
 						self.showFileBusyState($tr, false);
 					});
+				return deferred.promise();
 			});
-
+			return $.when.apply($, promises).then(function() {
+				if (!copy) {
+					OC.Notification.showTemporary(
+						t('files', 'Files were successfully moved')
+					);
+				} else {
+					OC.Notification.showTemporary(
+						t('files', 'Files were successfully copied')
+					);
+				}
+			});
 		},
 
 		/**
@@ -3005,6 +3013,9 @@
 					self.changeDirectory(targetDir).then(function() {
 						// set to false for performance
 						setTimeout(function() {
+							if (!$dragOriginal) {
+								return;
+							}
 							$dragOriginal.draggable('option', 'refreshPositions', false);
 						}, 1000);
 					});
@@ -3090,19 +3101,37 @@
 						return false;
 					}
 
-					var $tr = $(this).closest('tr');
-					if (($tr.data('permissions') & OC.PERMISSION_CREATE) === 0) {
-						self._showPermissionDeniedNotification();
-						return false;
-					}
-					var targetPath = self.getCurrentDirectory() + '/' + $tr.data('file');
+					var targetPath;
 
-					var files = self.getSelectedFiles();
-					if (files.length === 0) {
-						// single one selected without checkbox?
-						files = _.map(ui.helper.find('tr'), function(el) {
-							return self.elementToFile($(el));
-						});
+					// dropped directly on table
+					if ($(this).is(self.$container)) {
+						targetPath = self.getCurrentDirectory();
+						if ((self.getDirectoryPermissions() & OC.PERMISSION_CREATE) === 0) {
+							self._showPermissionDeniedNotification();
+							return false;
+						}
+					} else {
+						var $tr = $(this).closest('tr');
+						if (($tr.data('permissions') & OC.PERMISSION_CREATE) === 0) {
+							self._showPermissionDeniedNotification();
+							return false;
+						}
+						targetPath = OC.joinPaths(self.getCurrentDirectory(), $tr.data('file'));
+					}
+
+					var files = _.map(ui.helper.find('tr'), function(el) {
+						return self.elementToFile($(el));
+					});
+
+					// remove files moved to the same target as they already are
+					// this can happen when a drop event is caught both by a file row
+					// and the main container
+					files = _.filter(files, function(file) {
+						return file.path !== targetPath;
+					});
+
+					if (!files.length) {
+						return;
 					}
 
 					// FIXME: now assuming that all dropped files come from the same folder!
@@ -3144,7 +3173,7 @@
 			$(selectedFiles).each(function(i,elem) {
 				// TODO: refactor this with the table row creation code
 				var newtr = $('<tr/>')
-					.attr('data-dir', dir)
+					.attr('data-path', dir)
 					.attr('data-file', elem.name)
 					.attr('data-origin', elem.origin);
 				newtr.append($('<td class="filename" />').text(elem.name).css('background-size', 32));
