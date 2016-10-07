@@ -1909,16 +1909,25 @@
 			}
 			var promises = _.map(fileNames, function(fileName) {
 				var $tr = self.findFileEl(fileName);
+				var targetFileName = fileName;
 				self.showFileBusyState($tr, true);
 				if (targetPath.charAt(targetPath.length - 1) !== '/') {
 					// make sure we move the files into the target dir,
 					// not overwrite it
 					targetPath = targetPath + '/';
 				}
+
+				// copying a file/folder to the same directory as source ?
+				if (copy && dir === targetPath && dir === OC.joinPaths(self.getCurrentDirectory(), '/')) {
+					// autorename target name based on client-side list
+					targetFileName = self.getUniqueName(targetFileName);
+				}
+
 				var method = copy ? 'copy' : 'move';
 				var source = OC.joinPaths(dir, fileName);
-				var target = OC.joinPaths(targetPath, fileName);
+				var target = OC.joinPaths(targetPath, targetFileName);
 				var deferred = $.Deferred();
+
 				self.filesClient[method](source, target)
 					.done(function() {
 						// if still viewing the same directory
@@ -1927,16 +1936,17 @@
 							// recalculate folder size
 							if (!copy) {
 								var oldFile = self.findFileEl(target);
-								var newFile = self.findFileEl(fileName);
+								var newFile = self.findFileEl(targetFileName);
 								var oldSize = oldFile.data('size');
 								var newSize = oldSize + newFile.data('size');
 								oldFile.data('size', newSize);
 								oldFile.find('td.filesize').text(OC.Util.humanFileSize(newSize));
 								self.remove(fileName);
 							}
-						} else if (currentDir === targetPath) {
-							// moved something into the current dir ?
-							self.addAndFetchFileInfo(OC.joinPaths(targetPath, fileName), '');
+						}
+						if (currentDir === targetPath) {
+							// moved/copied something into the current dir ?
+							self.addAndFetchFileInfo(OC.joinPaths(targetPath, targetFileName), '');
 						}
 						deferred.resolve();
 					})
@@ -3099,6 +3109,72 @@
 
 		_setupFolderDropOptions: function() {
 			var self = this;
+			var dropEvents = [];
+
+			function processDropEvents() {
+				var targetPath;
+				var $target;
+				var event;
+				var ui;
+
+				// if more than a single drop event, favor the one on the row
+				if (dropEvents.length > 1) {
+					dropEvents = _.filter(dropEvents, function(event) {
+						var $target = event[0];
+						if ($target.is(self.$container)) {
+							return false;
+						}
+						return true;
+					});
+				}
+
+				// pick the first one, there should be only one anyway
+				$target = dropEvents[0][0];
+				event = dropEvents[0][1];
+				ui = dropEvents[0][2];
+				dropEvents = [];
+
+				// dropped directly on table
+				if ($target.is(self.$container)) {
+					targetPath = self.getCurrentDirectory();
+					if ((self.getDirectoryPermissions() & OC.PERMISSION_CREATE) === 0) {
+						self._showPermissionDeniedNotification();
+						return false;
+					}
+				} else {
+					var $tr = $target.closest('tr');
+					if (($tr.data('permissions') & OC.PERMISSION_CREATE) === 0) {
+						self._showPermissionDeniedNotification();
+						return false;
+					}
+					targetPath = OC.joinPaths(self.getCurrentDirectory(), $tr.data('file'));
+				}
+
+				var files = _.map(ui.helper.find('tr'), function(el) {
+					return self.elementToFile($(el));
+				});
+
+				if (!event.ctrlKey) {
+					// remove files moved to the same target as they already are
+					// this can happen when a drop event is caught both by a file row
+					// and the main container
+					files = _.filter(files, function(file) {
+						return file.path !== targetPath;
+					});
+				}
+
+				if (!files.length) {
+					return;
+				}
+
+				// FIXME: now assuming that all dropped files come from the same folder!
+				if (event.ctrlKey) {
+					self.copy(_.pluck(files, 'name'), targetPath, files[0].path);
+				} else {
+					self.move(_.pluck(files, 'name'), targetPath, files[0].path);
+				}
+			}
+
 			return {
 				hoverClass: "canDrop",
 				drop: function(event, ui) {
@@ -3107,44 +3183,17 @@
 						return false;
 					}
 
-					var targetPath;
-
-					// dropped directly on table
-					if ($(this).is(self.$container)) {
-						targetPath = self.getCurrentDirectory();
-						if ((self.getDirectoryPermissions() & OC.PERMISSION_CREATE) === 0) {
-							self._showPermissionDeniedNotification();
-							return false;
-						}
-					} else {
-						var $tr = $(this).closest('tr');
-						if (($tr.data('permissions') & OC.PERMISSION_CREATE) === 0) {
-							self._showPermissionDeniedNotification();
-							return false;
-						}
-						targetPath = OC.joinPaths(self.getCurrentDirectory(), $tr.data('file'));
-					}
-
-					var files = _.map(ui.helper.find('tr'), function(el) {
-						return self.elementToFile($(el));
-					});
-
-					// remove files moved to the same target as they already are
-					// this can happen when a drop event is caught both by a file row
-					// and the main container
-					files = _.filter(files, function(file) {
-						return file.path !== targetPath;
-					});
-
-					if (!files.length) {
-						return;
-					}
-
-					// FIXME: now assuming that all dropped files come from the same folder!
-					if (event.ctrlKey) {
-						self.copy(_.pluck(files, 'name'), targetPath, files[0].path);
-					} else {
-						self.move(_.pluck(files, 'name'), targetPath, files[0].path);
+					// note: when dropping on a row the drop event is called twice,
+					// first for the table container and then for the row,
+					// so to be able to handle priority we need to gather the drop events
+					// in this array and then process it later in a deferred function, once
+					// all drop events were gathered
+					dropEvents.push([$(this), event, ui]);
+					if (dropEvents.length === 1) {
+						// this is the first, initiate defer function
+						_.defer(function() {
+							processDropEvents();
+						});
 					}
 				},
 				tolerance: 'pointer'
