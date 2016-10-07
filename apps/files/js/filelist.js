@@ -3034,15 +3034,21 @@
 				helper: _.bind(this._createDragShadow, this),
 				cursor: 'move',
 
-				start: function(){
+				start: function(ev, ui){
+					var $helper = $(ui.helper);
 					var $selectedFiles = self.$table.find('td.filename input:checkbox:checked');
 					if (!$selectedFiles.length) {
 						$selectedFiles = $(this);
 					}
 					$selectedFiles.closest('tr').addClass('animate-opacity dragging');
 					$dragOriginal = $(this);
+					$('body').on('keydown.dragfiles, keyup.dragfiles', function(ev) {
+						$helper.toggleClass('copy-mode', ev.ctrlKey);
+					});
+
 				},
 				stop: function() {
+					$('body').off('keydown.dragfiles, keyup.dragfiles');
 					if (dragHoldTimer) {
 						clearTimeout(dragHoldTimer);
 					}
@@ -3164,23 +3170,28 @@
 			}
 
 			// build dragshadow
-			var dragshadow = $('<table class="dragshadow"></table>');
-			var tbody = $('<tbody></tbody>');
-			dragshadow.append(tbody);
+			var $dragshadow = $(
+				'<div class="files-dragshadow">' +
+					'<div class="icon icon-add"></div>' +
+					'<table></table>' +
+				'</div>');
+			var $table = $dragshadow.find('table');
+			var $tbody = $('<tbody></tbody>');
+			$table.append($tbody);
 
 			var dir = this.getCurrentDirectory();
 
 			$(selectedFiles).each(function(i,elem) {
 				// TODO: refactor this with the table row creation code
-				var newtr = $('<tr/>')
+				var $newtr = $('<tr/>')
 					.attr('data-path', dir)
 					.attr('data-file', elem.name)
 					.attr('data-origin', elem.origin);
-				newtr.append($('<td class="filename" />').text(elem.name).css('background-size', 32));
-				newtr.append($('<td class="size" />').text(OC.Util.humanFileSize(elem.size)));
-				tbody.append(newtr);
-				if (elem.type === 'dir') {
-					newtr.find('td.filename')
+				$newtr.append($('<td class="filename" />').text(elem.name).css('background-size', 32));
+				$newtr.append($('<td class="size" />').text(OC.Util.humanFileSize(elem.size)));
+				$tbody.append($newtr);
+				if (elem.mime === 'httpd/unix-directory') {
+					$newtr.find('td.filename')
 						.css('background-image', 'url(' + OC.imagePath('core', 'filetypes/folder.png') + ')');
 				} else {
 					var path = dir + '/' + elem.name;
@@ -3188,14 +3199,14 @@
 						path: path,
 						mime: elem.mimetype,
 						callback: function(previewpath) {
-							newtr.find('td.filename').css('background-image', 'url(' + previewpath + ')');
+							$newtr.find('td.filename').css('background-image', 'url(' + previewpath + ')');
 						},
 						etag: elem.etag
 					});
 				}
 			});
 
-			return dragshadow;
+			return $dragshadow;
 		}
 	};
 
