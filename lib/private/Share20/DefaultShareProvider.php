@@ -23,6 +23,7 @@
 namespace OC\Share20;
 
 use OCP\Files\File;
+use OCP\Share\IShare;
 use OCP\Share\IShareProvider;
 use OC\Share20\Exception\InvalidShare;
 use OC\Share20\Exception\ProviderException;
@@ -89,12 +90,12 @@ class DefaultShareProvider implements IShareProvider {
 	/**
 	 * Share a path
 	 *
-	 * @param \OCP\Share\IShare $share
-	 * @return \OCP\Share\IShare The share object
+	 * @param IShare $share
+	 * @return IShare The share object
 	 * @throws ShareNotFound
 	 * @throws \Exception
 	 */
-	public function create(\OCP\Share\IShare $share) {
+	public function create(IShare $share) {
 		$qb = $this->dbConn->getQueryBuilder();
 
 		$qb->insert('share');
@@ -181,10 +182,10 @@ class DefaultShareProvider implements IShareProvider {
 	/**
 	 * Update a share
 	 *
-	 * @param \OCP\Share\IShare $share
-	 * @return \OCP\Share\IShare The share object
+	 * @param IShare $share
+	 * @return IShare The share object
 	 */
-	public function update(\OCP\Share\IShare $share) {
+	public function update(IShare $share) {
 		if ($share->getShareType() === \OCP\Share::SHARE_TYPE_USER) {
 			/*
 			 * We allow updating the recipient on user shares.
@@ -251,50 +252,11 @@ class DefaultShareProvider implements IShareProvider {
 	}
 
 	/**
-	 * Get all children of this share
-	 * FIXME: remove once https://github.com/owncloud/core/pull/21660 is in
-	 *
-	 * @param \OCP\Share\IShare $parent
-	 * @return \OCP\Share\IShare[]
-	 */
-	public function getChildren(\OCP\Share\IShare $parent) {
-		$children = [];
-
-		$qb = $this->dbConn->getQueryBuilder();
-		$qb->select('*')
-			->from('share')
-			->where($qb->expr()->eq('parent', $qb->createNamedParameter($parent->getId())))
-			->andWhere(
-				$qb->expr()->in(
-					'share_type',
-					$qb->createNamedParameter([
-						\OCP\Share::SHARE_TYPE_USER,
-						\OCP\Share::SHARE_TYPE_GROUP,
-						\OCP\Share::SHARE_TYPE_LINK,
-					], IQueryBuilder::PARAM_INT_ARRAY)
-				)
-			)
-			->andWhere($qb->expr()->orX(
-				$qb->expr()->eq('item_type', $qb->createNamedParameter('file')),
-				$qb->expr()->eq('item_type', $qb->createNamedParameter('folder'))
-			))
-			->orderBy('id');
-
-		$cursor = $qb->execute();
-		while($data = $cursor->fetch()) {
-			$children[] = $this->createShare($data);
-		}
-		$cursor->closeCursor();
-
-		return $children;
-	}
-
-	/**
 	 * Delete a share
 	 *
-	 * @param \OCP\Share\IShare $share
+	 * @param IShare $share
 	 */
-	public function delete(\OCP\Share\IShare $share) {
+	public function delete(IShare $share) {
 		$qb = $this->dbConn->getQueryBuilder();
 		$qb->delete('share')
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($share->getId())));
@@ -314,12 +276,12 @@ class DefaultShareProvider implements IShareProvider {
 	 * Unshare a share from the recipient. If this is a group share
 	 * this means we need a special entry in the share db.
 	 *
-	 * @param \OCP\Share\IShare $share
+	 * @param IShare $share
 	 * @param string $recipient UserId of recipient
 	 * @throws BackendError
 	 * @throws ProviderException
 	 */
-	public function deleteFromSelf(\OCP\Share\IShare $share, $recipient) {
+	public function deleteFromSelf(IShare $share, $recipient) {
 		if ($share->getShareType() === \OCP\Share::SHARE_TYPE_GROUP) {
 
 			$group = $this->groupManager->get($share->getSharedWith());
@@ -395,7 +357,7 @@ class DefaultShareProvider implements IShareProvider {
 	/**
 	 * @inheritdoc
 	 */
-	public function move(\OCP\Share\IShare $share, $recipient) {
+	public function move(IShare $share, $recipient) {
 		if ($share->getShareType() === \OCP\Share::SHARE_TYPE_USER) {
 			// Just update the target
 			$qb = $this->dbConn->getQueryBuilder();
@@ -552,7 +514,7 @@ class DefaultShareProvider implements IShareProvider {
 	 * Get shares for a given path
 	 *
 	 * @param \OCP\Files\Node $path
-	 * @return \OCP\Share\IShare[]
+	 * @return IShare[]
 	 */
 	public function getSharesByPath(Node $path) {
 		$qb = $this->dbConn->getQueryBuilder();
@@ -725,7 +687,7 @@ class DefaultShareProvider implements IShareProvider {
 	 * Get a share by token
 	 *
 	 * @param string $token
-	 * @return \OCP\Share\IShare
+	 * @return IShare
 	 * @throws ShareNotFound
 	 */
 	public function getShareByToken($token) {
@@ -760,7 +722,7 @@ class DefaultShareProvider implements IShareProvider {
 	 * Create a share object from an database row
 	 *
 	 * @param mixed[] $data
-	 * @return \OCP\Share\IShare
+	 * @return IShare
 	 * @throws InvalidShare
 	 */
 	private function createShare($data) {
@@ -804,11 +766,11 @@ class DefaultShareProvider implements IShareProvider {
 	 * Resolve a group share to a user specific share
 	 * Thus if the user moved their group share make sure this is properly reflected here.
 	 *
-	 * @param \OCP\Share\IShare $share
+	 * @param IShare $share
 	 * @param string $userId
 	 * @return Share Returns the updated share if one was found else return the original share.
 	 */
-	private function resolveGroupShare(\OCP\Share\IShare $share, $userId) {
+	private function resolveGroupShare(IShare $share, $userId) {
 		$qb = $this->dbConn->getQueryBuilder();
 
 		$stmt = $qb->select('*')
