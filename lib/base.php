@@ -52,6 +52,7 @@
 
 use OCP\IRequest;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
@@ -118,6 +119,11 @@ class OC {
 	 * @var \OC\Config
 	 */
 	private static $config = null;
+
+	/**
+	 * @var Container
+	 */
+	public static $container;
 
 	/**
 	 * @throws \RuntimeException when the 3rdparty directory is missing or
@@ -841,8 +847,7 @@ class OC {
 
 		require_once $cacheFile;
 
-		$container = new OwnCloudContainer();
-
+		self::$container = new OwnCloudContainer();
 	}
 
 	/**
