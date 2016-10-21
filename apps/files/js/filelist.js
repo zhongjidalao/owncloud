@@ -298,12 +298,6 @@
 			// if dropping on folders is allowed, then also allow on breadcrumbs
 			if (this._folderDropOptions) {
 				breadcrumbOptions.onDrop = _.bind(this._onDropOnBreadCrumb, this);
-				breadcrumbOptions.onOver = function() {
-					self.$el.find('td.filename.ui-droppable').droppable('disable');
-				};
-				breadcrumbOptions.onOut = function() {
-					self.$el.find('td.filename.ui-droppable').droppable('enable');
-				};
 				self.$container.droppable(this._folderDropOptions);
 			}
 			this.breadcrumb = new OCA.Files.BreadCrumb(breadcrumbOptions);
@@ -3109,94 +3103,60 @@
 
 		_setupFolderDropOptions: function() {
 			var self = this;
-			var dropEvents = [];
-
-			function processDropEvents() {
-				var targetPath;
-				var $target;
-				var event;
-				var ui;
-
-				// if more than a single drop event, favor the one on the row
-				if (dropEvents.length > 1) {
-					dropEvents = _.filter(dropEvents, function(event) {
-						var $target = event[0];
-						if ($target.is(self.$container)) {
-							return false;
-						}
-						return true;
-					});
-				}
-
-				// pick the first one, there should be only one anyway
-				$target = dropEvents[0][0];
-				event = dropEvents[0][1];
-				ui = dropEvents[0][2];
-				dropEvents = [];
-
-				// dropped directly on table
-				if ($target.is(self.$container)) {
-					targetPath = self.getCurrentDirectory();
-					if ((self.getDirectoryPermissions() & OC.PERMISSION_CREATE) === 0) {
-						self._showPermissionDeniedNotification();
-						return false;
-					}
-				} else {
-					var $tr = $target.closest('tr');
-					if (($tr.data('permissions') & OC.PERMISSION_CREATE) === 0) {
-						self._showPermissionDeniedNotification();
-						return false;
-					}
-					targetPath = OC.joinPaths(self.getCurrentDirectory(), $tr.data('file'));
-				}
-
-				var files = _.map(ui.helper.find('tr'), function(el) {
-					return self.elementToFile($(el));
-				});
-
-				if (!event.ctrlKey) {
-					// remove files moved to the same target as they already are
-					// this can happen when a drop event is caught both by a file row
-					// and the main container
-					files = _.filter(files, function(file) {
-						return file.path !== targetPath;
-					});
-				}
-
-				if (!files.length) {
-					return;
-				}
-
-				// FIXME: now assuming that all dropped files come from the same folder!
-				if (event.ctrlKey) {
-					self.copy(_.pluck(files, 'name'), targetPath, files[0].path);
-				} else {
-					self.move(_.pluck(files, 'name'), targetPath, files[0].path);
-				}
-			}
 
 			return {
 				hoverClass: "canDrop",
 				drop: function(event, ui) {
+					var $target = $(event.target);
 					// don't allow moving a file into a selected folder
-					if ($(event.target).parents('tr').find('td input:first').prop('checked') === true) {
+					if ($target.parents('tr').find('td input:first').prop('checked') === true) {
 						return false;
 					}
 
-					// note: when dropping on a row the drop event is called twice,
-					// first for the table container and then for the row,
-					// so to be able to handle priority we need to gather the drop events
-					// in this array and then process it later in a deferred function, once
-					// all drop events were gathered
-					dropEvents.push([$(this), event, ui]);
-					if (dropEvents.length === 1) {
-						// this is the first, initiate defer function
-						_.defer(function() {
-							processDropEvents();
+					var targetPath = null;
+
+					// dropped directly on table
+					if ($target.is(self.$container)) {
+						targetPath = self.getCurrentDirectory();
+						if ((self.getDirectoryPermissions() & OC.PERMISSION_CREATE) === 0) {
+							self._showPermissionDeniedNotification();
+							return false;
+						}
+					} else {
+						var $tr = $target.closest('tr');
+						if (($tr.data('permissions') & OC.PERMISSION_CREATE) === 0) {
+							self._showPermissionDeniedNotification();
+							return false;
+						}
+						targetPath = OC.joinPaths(self.getCurrentDirectory(), $tr.data('file'));
+					}
+
+					var files = _.map(ui.helper.find('tr'), function(el) {
+						return self.elementToFile($(el));
+					});
+
+					if (!event.ctrlKey) {
+						// remove files moved to the same target as they already are
+						// this can happen when a drop event is caught both by a file row
+						// and the main container
+						files = _.filter(files, function(file) {
+							return file.path !== targetPath;
 						});
 					}
+
+					if (!files.length) {
+						return;
+					}
+
+					// FIXME: now assuming that all dropped files come from the same folder!
+					if (event.ctrlKey) {
+						self.copy(_.pluck(files, 'name'), targetPath, files[0].path);
+					} else {
+						self.move(_.pluck(files, 'name'), targetPath, files[0].path);
+					}
 				},
-				tolerance: 'pointer'
+				tolerance: 'pointer',
+				greedy: true
 			};
 		},
 
