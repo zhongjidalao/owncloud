@@ -24,6 +24,7 @@
 namespace OCA\DAV\Tests\unit\Connector\Sabre;
 
 use OCA\DAV\Connector\Sabre\FilesReportPlugin as FilesReportPluginImplementation;
+use OCA\DAV\Files\Xml\FilterRequest;
 use OCP\SystemTag\ISystemTagObjectMapper;
 use OC\Files\View;
 use OCP\Files\Folder;
@@ -154,21 +155,11 @@ class FilesReportPluginTest extends \Test\TestCase {
 	public function testOnReport() {
 		$path = 'test';
 
-		$parameters = [
-			[
-				'name'  => '{DAV:}prop',
-				'value' => [
-					['name' => '{DAV:}getcontentlength', 'value' => ''],
-					['name' => '{http://owncloud.org/ns}size', 'value' => ''],
-				],
-			],
-			[
-				'name'  => '{http://owncloud.org/ns}filter-rules',
-				'value' => [
-					['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
-					['name' => '{http://owncloud.org/ns}systemtag', 'value' => '456'],
-				],
-			],
+		$parameters = new FilterRequest();
+		$parameters->properties = ['{DAV:}getcontentlength', '{http://owncloud.org/ns}size'];
+		$parameters->filters = [
+			'systemtag' => [123, 456],
+			'favorite' => null
 		];
 
 		$this->groupManager->expects($this->any())
@@ -400,7 +391,8 @@ class FilesReportPluginTest extends \Test\TestCase {
 			]);
 
 		$rules = [
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
+			'systemtag' => ['123'],
+			'favorite' => null
 		];
 
 		$this->assertEquals(['111', '222'], $this->invokePrivate($this->plugin, 'processFilterRules', [$rules]));
@@ -422,9 +414,10 @@ class FilesReportPluginTest extends \Test\TestCase {
 				['456', 'files', 0, '', ['222', '333']],
 			]);
 
+
 		$rules = [
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '456'],
+			'systemtag' => ['123', '456'],
+			'favorite' => null
 		];
 
 		$this->assertEquals(['222'], array_values($this->invokePrivate($this->plugin, 'processFilterRules', [$rules])));
@@ -447,8 +440,8 @@ class FilesReportPluginTest extends \Test\TestCase {
 			]);
 
 		$rules = [
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '456'],
+			'systemtag' => ['123', '456'],
+			'favorite' => null
 		];
 
 		$this->assertEquals([], array_values($this->invokePrivate($this->plugin, 'processFilterRules', [$rules])));
@@ -471,8 +464,8 @@ class FilesReportPluginTest extends \Test\TestCase {
 			]);
 
 		$rules = [
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '456'],
+			'systemtag' => ['123', '456'],
+			'favorite' => null
 		];
 
 		$this->assertEquals([], array_values($this->invokePrivate($this->plugin, 'processFilterRules', [$rules])));
@@ -497,9 +490,8 @@ class FilesReportPluginTest extends \Test\TestCase {
 			]);
 
 		$rules = [
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '456'],
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '789'],
+			'systemtag' => ['123', '456', '789'],
+			'favorite' => null
 		];
 
 		$this->assertEquals([], array_values($this->invokePrivate($this->plugin, 'processFilterRules', [$rules])));
@@ -540,8 +532,8 @@ class FilesReportPluginTest extends \Test\TestCase {
 			->will($this->returnValue(['222', '333']));
 
 		$rules = [
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '456'],
+			'systemtag' => ['123', '456'],
+			'favorite' => null
 		];
 
 		$this->assertEquals(['222'], array_values($this->invokePrivate($this->plugin, 'processFilterRules', [$rules])));
@@ -577,8 +569,8 @@ class FilesReportPluginTest extends \Test\TestCase {
 			->will($this->returnValue([$tag1, $tag2]));
 
 		$rules = [
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '456'],
+			'systemtag' => ['123', '456'],
+			'favorite' => null
 		];
 
 		$this->invokePrivate($this->plugin, 'processFilterRules', [$rules]);
@@ -620,8 +612,8 @@ class FilesReportPluginTest extends \Test\TestCase {
 			->will($this->returnValue(['222', '333']));
 
 		$rules = [
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '123'],
-			['name' => '{http://owncloud.org/ns}systemtag', 'value' => '456'],
+			'systemtag' => ['123', '456'],
+			'favorite' => null
 		];
 
 		$this->assertEquals(['222'], array_values($this->invokePrivate($this->plugin, 'processFilterRules', [$rules])));
@@ -629,7 +621,8 @@ class FilesReportPluginTest extends \Test\TestCase {
 
 	public function testProcessFavoriteFilter() {
 		$rules = [
-			['name' => '{http://owncloud.org/ns}favorite', 'value' => '1'],
+			'systemtag' => [],
+			'favorite' => true
 		];
 
 		$this->privateTags->expects($this->once())
