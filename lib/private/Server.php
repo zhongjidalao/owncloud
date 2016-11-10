@@ -581,13 +581,6 @@ class Server extends ServerContainer implements IServerContainer {
 				new \OC_Defaults()
 			);
 		});
-		$this->registerService('OcsClient', function (Server $c) {
-			return new OCSClient(
-				$this->getHTTPClientService(),
-				$this->getConfig(),
-				$this->getLogger()
-			);
-		});
 		$this->registerService('LockingProvider', function (Server $c) {
 			$ini = $c->getIniWrapper();
 			$config = $c->getConfig();
@@ -1246,13 +1239,6 @@ class Server extends ServerContainer implements IServerContainer {
 	 */
 	public function getWebRoot() {
 		return $this->webRoot;
-	}
-
-	/**
-	 * @return \OC\OCSClient
-	 */
-	public function getOcsClient() {
-		return $this->query('OcsClient');
 	}
 
 	/**
