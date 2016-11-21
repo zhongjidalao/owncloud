@@ -293,20 +293,23 @@ class CacheTest extends TestCase {
 		$file1 = 'folder';
 		$file2 = 'folder/foobar';
 		$file3 = 'folder/foo';
+		$file4 = 'folder/f[o.o%ba-r';
 		$data1 = ['size' => 100, 'mtime' => 50, 'mimetype' => 'foo/folder'];
 		$fileData = [];
 		$fileData['foobar'] = ['size' => 1000, 'mtime' => 20, 'mimetype' => 'foo/file'];
 		$fileData['foo'] = ['size' => 20, 'mtime' => 25, 'mimetype' => 'foo/file'];
+		$fileData['f[o.o%ba-r'] = ['size' => 20, 'mtime' => 25, 'mimetype' => 'foo/file'];
 
 		$this->cache->put($file1, $data1);
 		$this->cache->put($file2, $fileData['foobar']);
 		$this->cache->put($file3, $fileData['foo']);
+		$this->cache->put($file4, $fileData['f[o.o%ba-r']);
 
 		$this->assertEquals(2, count($this->cache->search('%foo%')));
 		$this->assertEquals(1, count($this->cache->search('foo')));
 		$this->assertEquals(1, count($this->cache->search('%folder%')));
 		$this->assertEquals(1, count($this->cache->search('folder%')));
-		$this->assertEquals(3, count($this->cache->search('%')));
+		$this->assertEquals(4, count($this->cache->search('%')));
 
 		// case insensitive search should match the same files
 		$this->assertEquals(2, count($this->cache->search('%Foo%')));
@@ -314,8 +317,12 @@ class CacheTest extends TestCase {
 		$this->assertEquals(1, count($this->cache->search('%Folder%')));
 		$this->assertEquals(1, count($this->cache->search('Folder%')));
 
-		$this->assertEquals(3, count($this->cache->searchByMime('foo')));
-		$this->assertEquals(2, count($this->cache->searchByMime('foo/file')));
+		$this->assertEquals(4, count($this->cache->searchByMime('foo')));
+		$this->assertEquals(3, count($this->cache->searchByMime('foo/file')));
+
+		// oracle uses regexp,
+		$this->assertEquals(1, count($this->cache->search('f[o.o%ba-r')));
+
 	}
 
 	function testSearchByTag() {
