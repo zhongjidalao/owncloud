@@ -69,7 +69,7 @@ class Owncloud {
 	 * @param string $message
 	 * @param int $level
 	 */
-	public static function write($app, $message, $level) {
+	public static function write($app, $message, $level, $extras = null) {
 		$config = \OC::$server->getSystemConfig();
 
 		// default to ISO8601
@@ -110,7 +110,10 @@ class Owncloud {
 			'url',
 			'user'
 		);
-		$entry = json_encode($entry);
+		if (is_array($extras)) {
+			$entry = array_merge($entry, $extras);
+		}
+		$entry = json_encode($entry, JSON_UNESCAPED_SLASHES);
 		$handle = @fopen(self::$logFile, 'a');
 		@chmod(self::$logFile, 0640);
 		if ($handle) {
