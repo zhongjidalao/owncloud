@@ -1380,6 +1380,7 @@ class View {
 	 * @return FileInfo[]
 	 */
 	public function getDirectoryContent($directory, $mimetype_filter = '') {
+		throw new \Exception('Test exception');
 		$this->assertPathLength($directory);
 		if (!Filesystem::isValidPath($directory)) {
 			return [];
