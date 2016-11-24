@@ -317,7 +317,7 @@ class EmptyContentSecurityPolicy {
 	 * Domains from which the element can be embedded
 	 * @param string $domain Domain to whitelist. Any passed value needs to be properly sanitized.
 	 * @return $this
-	 * @since 9.1.0
+	 * @since 9.2.0
 	 */
 	public function addAllowedFrameAncestorDomain($domain) {
 		$this->allowedFrameAncestorDomains[] = $domain;
@@ -329,7 +329,7 @@ class EmptyContentSecurityPolicy {
 	 *
 	 * @param string $domain
 	 * @return $this
-	 * @since 9.1.0
+	 * @since 9.2.0
 	 */
 	public function disallowFrameAncestorDomain($domain) {
 		$this->allowedFrameAncestorDomains = array_diff($this->allowedFrameAncestorDomains, [$domain]);
