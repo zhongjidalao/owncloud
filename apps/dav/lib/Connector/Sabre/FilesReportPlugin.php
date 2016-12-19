@@ -323,26 +323,19 @@ class FilesReportPlugin extends ServerPlugin {
 	 * @return Response[]
 	 */
 	public function prepareResponses($filesUri, $requestedProps, $nodes) {
+		$paths = array_map(function($node) use ($filesUri) {
+			return $filesUri . $node->getPath();
+		}, $nodes);
+
+		$results = $this->server->getPropertiesForMultiplePaths($paths, $requestedProps);
+
+		$base = rtrim($this->server->getBaseUri(), '/') . $filesUri;
+
 		$responses = [];
-		foreach ($nodes as $node) {
-			$propFind = new PropFind($filesUri . $node->getPath(), $requestedProps);
+		foreach ($results as $fullPath => $props) {
+			$responses[] = new Response($base . $fullPath, $props);
+        }
 
-			$this->server->getPropertiesByNode($propFind, $node);
-			// copied from Sabre Server's getPropertiesForPath
-			$result = $propFind->getResultForMultiStatus();
-			$result['href'] = $propFind->getPath();
-
-			$resourceType = $this->server->getResourceTypeForNode($node);
-			if (in_array('{DAV:}collection', $resourceType) || in_array('{DAV:}principal', $resourceType)) {
-				$result['href'] .= '/';
-			}
-
-			$responses[] = new Response(
-				rtrim($this->server->getBaseUri(), '/') . $filesUri . $node->getPath(),
-				$result,
-				200
-			);
-		}
 		return $responses;
 	}
 
