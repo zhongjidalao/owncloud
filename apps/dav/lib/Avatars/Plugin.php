@@ -53,7 +53,7 @@ class Plugin extends ServerPlugin {
 		if ($node instanceof IPrincipal) {
 			$principalUrl = $node->getPrincipalUrl();
 
-			$propFind->handle('{http://owncloud.org}avatar-home', function() use ($principalUrl) {
+			$propFind->handle('{http://owncloud.org/ns}avatar-home', function() use ($principalUrl) {
 
 				$avatarHome = $this->getAvatarHome($principalUrl);
 				if (is_null($avatarHome)) {
