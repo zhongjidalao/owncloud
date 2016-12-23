@@ -108,6 +108,9 @@ class Server {
 		$acl->defaultUsernamePath = 'principals/users';
 		$this->server->addPlugin($acl);
 
+		// avatar plugin
+		$this->server->addPlugin(new \OCA\DAV\Avatars\Plugin());
+
 		// calendar plugins
 		$this->server->addPlugin(new \OCA\DAV\CalDAV\Plugin());
 		$this->server->addPlugin(new \Sabre\CalDAV\ICSExportPlugin());
