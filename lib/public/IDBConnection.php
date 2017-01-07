@@ -250,4 +250,14 @@ interface IDBConnection {
 	 * @since 9.0.0
 	 */
 	public function escapeLikeParameter($param);
+
+	/**
+	 * Gets the currently active transaction isolation level.
+	 *
+	 * @return integer The current transaction isolation level.
+	 * @since 10.0.0
+	 */
+	public function getTransactionIsolation();
+
+
 }
