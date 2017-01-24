@@ -73,21 +73,13 @@ trait Sharing {
 			$url = $this->lastShareData->data->url;
 		}
 		$fullUrl = $url . "/download";
-		$options['save_to'] = "./$filename";
-		$this->response = $client->get($fullUrl, $options);
-		$finfo = new finfo;
-		$fileinfo = $finfo->file("./$filename", FILEINFO_MIME_TYPE);
-		PHPUnit_Framework_Assert::assertEquals($fileinfo, "text/plain");
-		if (file_exists("./$filename")) {
-			unlink("./$filename");
-		}
+		$this->checkDownload($fullUrl);
 	}
 
 	/**
 	 * @Then /^Public shared file "([^"]*)" with password "([^"]*)" can be downloaded$/
 	 */
 	public function checkPublicSharedFileWithPassword($filename, $password) {
-		$client = new Client();
 		$options = [];
 		if (count($this->lastShareData->data->element) > 0){
 			$token = $this->lastShareData->data[0]->token;
@@ -97,15 +89,25 @@ trait Sharing {
 		}
 
 		$fullUrl = substr($this->baseUrl, 0, -4) . "public.php/webdav";
-		$options['auth'] = [$token, $password];
-		$options['save_to'] = "./$filename";
-		$this->response = $client->get($fullUrl, $options);
-		$finfo = new finfo;
-		$fileinfo = $finfo->file("./$filename", FILEINFO_MIME_TYPE);
-		PHPUnit_Framework_Assert::assertEquals($fileinfo, "text/plain");
-		if (file_exists("./$filename")) {
-			unlink("./$filename");
+		$this->checkDownload($fullUrl, [$token, $password]);
+	}
+
+	private function checkDownload($url, $auth = null) {
+		if ($auth !== null) {
+			$options['auth'] = $auth;
 		}
+		$options['stream'] = true;
+
+		$client = new Client();
+		$this->response = $client->get($url, $options);
+		PHPUnit_Framework_Assert::assertEquals(200, $this->response->getStatusCode());
+
+		$body = $this->response->getBody();
+		while (!$body->eof()) {
+			// read everything
+			$buf = $body->read(8192);
+		}
+		$body->close();
 	}
 
 	/**
