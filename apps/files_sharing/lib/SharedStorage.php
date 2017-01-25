@@ -38,6 +38,7 @@ use OCP\Files\Storage\IStorage;
 use OCP\Lock\ILockingProvider;
 use OC\Files\Storage\FailedStorage;
 use OCP\Files\NotFoundException;
+use OC\User\NoUserException;
 
 /**
  * Convert target path to source path and pass the function call to the correct storage provider
@@ -105,7 +106,8 @@ class SharedStorage extends \OC\Files\Storage\Wrapper\Jail implements ISharedSto
 
 		} catch (\Exception $e) {
 			$this->sourceStorage = new FailedStorage(['exception' => $e]);
-			if (!$e instanceof NotFoundException) {
+			// either the source file was deleted or the user
+			if (!$e instanceof NotFoundException && !$e instanceof NoUserException) {
 				$this->logger->logException($e);
 			}
 		}
