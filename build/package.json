@@ -32,7 +32,7 @@
     "@bower_components/strengthify": "MorrisJobke/strengthify#0.5.9",
     "@bower_components/underscore": "jashkenas/underscore#1.13.2",
     "@bower_components/zxcvbn": "dropbox/zxcvbn#4.4.2",
-    "minimist": "1.2.5",
+    "minimist": "1.2.6",
     "modclean": "^3.0.0-beta.1",
     "modclean-patterns-owncloud": "./modclean-patterns-owncloud/"
   },
@@ -44,7 +44,7 @@
     "karma": "^6.3.16",
     "karma-coverage": "*",
     "karma-firefox-launcher": "^2.1.2",
-    "karma-jasmine": "^1.1.2",
+    "karma-jasmine": "^4.0.2",
     "karma-jasmine-sinon": "^1.0.4",
     "karma-junit-reporter": "*",
     "sinon": "^12.0.1"
